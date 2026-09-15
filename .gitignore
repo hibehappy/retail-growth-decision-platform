@@ -223,3 +223,8 @@ __marimo__/
 project_env/
 data/raw/
 .env
+
+# dbt generated files
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/

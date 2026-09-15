@@ -1,0 +1,18 @@
+retail_growth:
+  target: dev
+
+  outputs:
+    dev:
+      type: snowflake
+
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+
+      authenticator: externalbrowser
+
+      role: DBT_DEV_ROLE
+      database: RETAIL_GROWTH
+      warehouse: RETAIL_DEV_WH
+      schema: DEV
+
+      threads: 4
