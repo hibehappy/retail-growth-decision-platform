@@ -1,0 +1,92 @@
+version: 2
+
+models:
+
+  - name: dim_customer
+    description: One row per customer.
+
+    columns:
+      - name: client_id
+        data_tests:
+          - not_null
+          - unique
+
+  - name: dim_product
+    description: One row per product.
+
+    columns:
+      - name: product_id
+        data_tests:
+          - not_null
+          - unique
+
+  - name: fact_transaction
+    description: >
+      One row per validated customer transaction.
+      transaction_id alone is not globally unique.
+
+    columns:
+      - name: transaction_key
+        data_tests:
+          - not_null
+          - unique
+
+      - name: client_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: client_id
+
+      - name: transaction_datetime
+        data_tests:
+          - not_null
+
+  - name: fact_transaction_item
+    description: >
+      One row per transaction-customer-product combination.
+
+    columns:
+      - name: transaction_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fact_transaction')
+                field: transaction_key
+
+      - name: product_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_id
+
+  - name: fact_treatment_outcome
+    description: One row per uplift-training customer.
+
+    columns:
+      - name: client_id
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: client_id
+
+      - name: treatment_flg
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+
+      - name: target
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [0, 1]

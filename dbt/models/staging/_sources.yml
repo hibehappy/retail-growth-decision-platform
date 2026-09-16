@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: x5_raw
+    database: RETAIL_GROWTH
+    schema: RAW
+
+    tables:
+      - name: clients
+      - name: products
+      - name: purchases
+      - name: uplift_train
+      - name: uplift_test
