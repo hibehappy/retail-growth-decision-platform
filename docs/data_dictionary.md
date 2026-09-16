@@ -324,6 +324,13 @@ Unique observed values: **780**
 
 Observed values range widely, but the precise business meaning/unit is not conclusively documented. The raw field name should be retained until an authoritative definition is established.
 
+**Unverified interpretation hypotheses (based on the word "netto," not on an X5 field definition):**
+
+- Net product weight, potentially excluding packaging or container weight.
+- Net product price/value, potentially excluding a tax or another charge.
+
+These alternatives imply different units and cannot be treated as interchangeable. Neither the unit, the deduction involved, nor the intended meaning of `netto` has been confirmed for this dataset. Do **not** rename it to `net_weight`/`net_price`, convert its units, or use it as a verified monetary measure.
+
 ### `is_own_trademark`
 
 Indicator for whether the product belongs to the retailer's own trademark/private-label group.
@@ -592,7 +599,12 @@ Observed behavior:
 - Full-table behavior confirms it should remain at item grain.
 - It should not be collapsed into the transaction fact.
 
-Exact business semantics remain unresolved.
+**Unverified interpretation hypotheses (based on the column abbreviation and third-party/generated explanations):**
+
+- `iss` might refer to **issuance**, such as an amount associated with issuing loyalty benefits or points.
+- Alternatively, `iss` might refer to an **issuer** or another source-system term.
+
+The expansion of `iss`, the unit (money, points, or otherwise), and the sign convention have **not** been verified for X5. The field's item-level behavior does not establish what it measures. Retain `trn_sum_from_iss` unchanged and do not treat it as validated revenue or loyalty-points issuance.
 
 ### `trn_sum_from_red`
 
@@ -608,7 +620,11 @@ Observed behavior:
 - Can vary within a transaction.
 - Does not reliably reconcile with `purchase_sum`.
 
-Exact business semantics remain unresolved.
+**Unverified interpretation hypothesis (based on the column abbreviation and third-party/generated explanations):**
+
+- `red` might mean **redemption**, possibly an item-level amount associated with redeeming loyalty benefits or points.
+
+This does **not** establish that the field contains points redeemed, a currency amount, or a discount. Its ~93.35% missingness and failure to reconcile consistently with `purchase_sum` leave the exact definition unresolved. It has not been shown to equal the separately validated transaction-level `regular_points_spent` or `express_points_spent` fields. Keep the source name and avoid deriving item-level redemption value without authoritative documentation.
 
 ## Transaction-Level vs Item-Level Structure
 
@@ -1137,5 +1153,3 @@ The raw audit and Snowflake full-table validation are complete. Remaining decisi
 - Revisit `dim_store` only if additional store metadata becomes available or store-level modeling requires a dedicated dimension.
 
 - Establish treatment-assignment assumptions before making causal claims.
-
----
