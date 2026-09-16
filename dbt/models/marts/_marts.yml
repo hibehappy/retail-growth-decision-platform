@@ -62,3 +62,61 @@ models:
               arguments:
                 to: ref('dim_customer')
                 field: client_id
+
+  - name: mart_customer_features
+    description: >
+      Leakage-safe customer feature snapshot constructed from
+      historical data available before communication.
+
+    columns:
+      - name: client_id
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: client_id
+
+      - name: transaction_count
+        data_tests:
+          - not_null
+
+      - name: recency_days
+        data_tests:
+          - not_null
+
+  - name: mart_uplift_training
+    description: >
+      Customer features joined to treatment and observed outcome
+      for uplift modeling.
+
+    columns:
+      - name: client_id
+        data_tests:
+          - not_null
+          - unique
+
+      - name: treatment_flg
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+
+      - name: target
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+
+  - name: mart_uplift_scoring
+    description: >
+      Leakage-safe customer features for the uplift test population.
+
+    columns:
+      - name: client_id
+        data_tests:
+          - not_null
+          - unique
