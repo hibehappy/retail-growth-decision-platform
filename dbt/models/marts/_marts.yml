@@ -1,0 +1,64 @@
+version: 2
+
+models:
+
+  - name: mart_customer_activity
+    description: >
+      One row per customer summarizing historical transaction
+      and loyalty activity.
+
+    columns:
+      - name: client_id
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: client_id
+
+      - name: transaction_count
+        data_tests:
+          - not_null
+
+  - name: mart_purchase_daily
+    description: >
+      One row per observed transaction date containing daily
+      customer, transaction, purchase, and loyalty metrics.
+
+    columns:
+      - name: transaction_date
+        data_tests:
+          - not_null
+          - unique
+
+  - name: mart_product_performance
+    description: >
+      One row per product with historical purchase activity.
+      Transaction-level purchase_sum is intentionally not
+      attributed to products.
+
+    columns:
+      - name: product_id
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_id
+
+  - name: mart_customer_360
+    description: >
+      One row per customer combining validated customer
+      attributes with historical purchase behavior.
+
+    columns:
+      - name: client_id
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: client_id
