@@ -222,6 +222,8 @@ __marimo__/
 .DS_Store
 project_env/
 data/raw/
+data/processed/
+data/models/
 .env
 
 # dbt generated files
