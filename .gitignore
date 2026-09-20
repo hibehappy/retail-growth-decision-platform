@@ -221,12 +221,19 @@ __marimo__/
 # Retail Growth Decision Platform
 .DS_Store
 project_env/
-data/raw/
-data/processed/
-data/models/
 .env
 
 # dbt generated files
 dbt/target/
 dbt/logs/
 dbt/dbt_packages/
+
+# Local datasets, models, and MLflow tracking storage
+data/raw/
+data/processed/
+data/models/
+data/mlflow/
+
+# MLflow defaults, in case they are created accidentally
+mlruns/
+mlflow.db
