@@ -237,3 +237,7 @@ data/mlflow/
 # MLflow defaults, in case they are created accidentally
 mlruns/
 mlflow.db
+
+# Airflow local environment and runtime
+airflow_env/
+data/airflow/
