@@ -1,0 +1,15 @@
+
+.git
+.env
+project_env/
+data/
+notebooks/
+dbt/
+docs/
+architecture/
+sql/
+tests/
+__pycache__/
+**/__pycache__/
+*.pyc
+.DS_Store
