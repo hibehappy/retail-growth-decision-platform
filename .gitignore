@@ -241,3 +241,6 @@ mlflow.db
 # Airflow local environment and runtime
 airflow_env/
 data/airflow/
+
+# Generated synthetic ingestion demonstration files
+data/synthetic/
