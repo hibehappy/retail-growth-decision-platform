@@ -245,3 +245,7 @@ data/airflow/
 
 # Generated synthetic ingestion demonstration files
 data/synthetic/
+
+# Streaming development environment and generated state
+streaming_env/
+data/streaming/

@@ -1,0 +1,21 @@
+# ============================================================
+# Local Kafka broker
+#
+# Purpose:
+# Provide a reproducible development event broker without
+# installing Kafka directly on the host machine.
+#
+# No production durability or multi-broker replication is
+# implied by this single-node development configuration.
+# ============================================================
+
+services:
+
+  kafka:
+
+    image: apache/kafka:4.3.1
+
+    container_name: retail-growth-kafka
+
+    ports:
+      - "9092:9092"
