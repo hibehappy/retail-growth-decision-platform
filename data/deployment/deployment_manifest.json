@@ -1,9 +1,0 @@
-{
-  "model_family": "logistic_t_learner",
-  "mlflow_run_id": "11a6f74e47e240b8a76c4aa0646a1419",
-  "treatment_model_uri": "models:/m-a1338e38337f4960a5ea17123799590b",
-  "control_model_uri": "models:/m-ec55b921213742708ee9d462fa5bffe7",
-  "feature_count": 34,
-  "feature_cutoff": "2019-03-19 00:00:00",
-  "model_sha256": "b9e5736d662b0c07e74f7dc8f7ee56a58d3e4787252a44e4ebfed7ff8af4942a"
-}

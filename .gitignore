@@ -233,6 +233,7 @@ data/raw/
 data/processed/
 data/models/
 data/mlflow/
+data/deployment/
 
 # MLflow defaults, in case they are created accidentally
 mlruns/

@@ -1,0 +1,146 @@
+# ============================================================
+# Retail Growth — Continuous Integration
+#
+# Purpose:
+# Validate every proposed code change on a clean machine.
+#
+# This workflow does NOT:
+# - access Snowflake
+# - access AWS
+# - retrain models
+# - update MLflow
+# - deploy the API
+#
+# Those operations require separate controlled workflows.
+# ============================================================
+
+name: CI
+
+# ------------------------------------------------------------
+# Run CI:
+#
+# 1. When code is pushed to main.
+# 2. For pull requests targeting main.
+# 3. Manually from the GitHub Actions interface.
+# ------------------------------------------------------------
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+# ------------------------------------------------------------
+# CI only needs permission to read repository contents.
+# ------------------------------------------------------------
+
+permissions:
+  contents: read
+
+# ------------------------------------------------------------
+# If another commit arrives while CI is still running for
+# the same branch, cancel the outdated run.
+# ------------------------------------------------------------
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+
+jobs:
+
+  # ==========================================================
+  # JOB 1 — Repository and code quality
+  # ==========================================================
+
+  quality-gates:
+
+    name: Quality Gates
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ------------------------------------------------------
+      # Download the repository into the temporary runner.
+      # ------------------------------------------------------
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # ------------------------------------------------------
+      # Match the Python major/minor version used by the
+      # project and cache downloaded pip packages.
+      # ------------------------------------------------------
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      # ------------------------------------------------------
+      # Install the project dependencies from scratch.
+      #
+      # This catches undeclared dependencies that may happen
+      # to exist locally on a developer's machine.
+      # ------------------------------------------------------
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      # ------------------------------------------------------
+      # Run the same reusable checks that can be run locally.
+      # ------------------------------------------------------
+
+      - name: Run quality gates
+        run: |
+          python scripts/ci_checks.py
+
+
+  # ==========================================================
+  # JOB 2 — Container build
+  #
+  # Only run after the quality gates succeed.
+  #
+  # We build the image but do NOT push or deploy it.
+  # ==========================================================
+
+  docker-build:
+
+    name: Docker Build
+
+    needs:
+      - quality-gates
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # ------------------------------------------------------
+      # A successful build verifies:
+      #
+      # - Dockerfile syntax
+      # - serving dependency installation
+      # - required application files are present
+      #
+      # No model artifact is needed merely to build the image.
+      # ------------------------------------------------------
+
+      - name: Build FastAPI image
+        run: |
+          docker build \
+            -f api/Dockerfile \
+            -t retail-growth-api:ci \
+            .
