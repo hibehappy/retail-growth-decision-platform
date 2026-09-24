@@ -30,25 +30,7 @@ The project extends beyond model development into data engineering, decision sci
 
 ## Platform Architecture
 
-```mermaid
-flowchart LR
-
-    A[X5 Retail Data] --> B[Amazon S3]
-    B --> C[Snowflake]
-    C --> D[dbt]
-    D --> E[Feature Marts]
-    E --> F[Uplift Modeling]
-    F --> G[Decision Optimization]
-    G --> H[MLflow]
-    H --> I[FastAPI]
-    I --> J[Docker]
-
-    K[Airflow] -. orchestration .-> D
-    L[GitHub Actions] -. CI .-> I
-    M[Kafka + Spark] -. streaming demo .-> C
-    N[Drift Monitoring] -. model reliability .-> F
-    O[Lineage + Governance] -. provenance .-> D
-```
+![Retail Growth Decision Platform Architecture](docs/assets/architecture_overview.png)
 
 The historical X5 workflow remains the source of truth for model development.
 
