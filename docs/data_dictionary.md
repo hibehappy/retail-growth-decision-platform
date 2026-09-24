@@ -1,60 +1,48 @@
 # X5 RetailHero Data Dictionary
 
-## Dataset Overview
+## Purpose
+
+This document defines the source datasets, validated grains, important fields, warehouse models, analytical marts, model-feature groups, and known data-quality limitations used throughout the Retail Growth Decision Platform.
+
+Definitions are based on the source data and transformations implemented in this repository. Where source-field semantics could not be verified, the field is explicitly marked as unresolved rather than assigned an inferred meaning.
+
+Synthetic incremental-ingestion and streaming datasets are documented separately at the end of this file and are not part of the historical X5 modeling population.
+
+## Dataset overview
 
 The X5 RetailHero dataset contains customer demographics, product metadata, historical purchase behavior, and uplift-modeling treatment/outcome data.
 
-The core source relationships are:
-
 ```text
-
 clients
-
   |
-
   | client_id
-
   |
-
   +--------------------------+
-
   |                          |
-
   v                          v
-
 purchases              uplift_train / uplift_test
-
   |
-
   | product_id
-
   v
-
 products
-
 ```
 
 Verified client split:
 
 - Total clients: **400,162**
-
 - Uplift train clients: **200,039**
-
 - Uplift test clients: **200,123**
-
 - Train/test overlap: **0**
-
 - Clients missing from train/test: **0**
-
-- Train/test IDs missing from clients: **0**
+- Train/test IDs missing from `clients`: **0**
 
 Therefore, `uplift_train` and `uplift_test` form a complete, non-overlapping partition of the `clients` table.
 
-## Current Warehouse Status
+## Warehouse status
 
-The five source files are now loaded from private AWS S3 storage into the Snowflake `RETAIL_GROWTH.RAW` schema through a storage integration and external stage.
+The five historical source files are loaded from private AWS S3 storage into the Snowflake `RETAIL_GROWTH.RAW` schema through a storage integration and external stage.
 
-The raw layer preserves source values without destructive cleaning and includes ingestion lineage metadata such as source filename, source row number, and load timestamp.
+The raw layer preserves source values without destructive cleaning and includes ingestion-lineage metadata such as source filename, source row number, and load timestamp.
 
 Snowflake row counts match the source audit.
 
@@ -70,18 +58,15 @@ Contains one record per customer with demographic and loyalty-program informatio
 
 **One row per client.**
 
-## Primary Key
+## Primary key
 
 `client_id`
 
 ## Validation
 
 - Rows: **400,162**
-
 - Unique `client_id`: **400,162**
-
 - Duplicate `client_id`: **0**
-
 - Duplicate rows: **0**
 
 ## Columns
@@ -90,115 +75,84 @@ Contains one record per customer with demographic and loyalty-program informatio
 
 Unique customer identifier.
 
-Raw type: `object / string`
+Raw type: string.
 
 Constraints:
 
-- Not null
-
-- Unique
+- not null
+- unique
 
 ### `first_issue_date`
 
 Timestamp associated with the customer's first loyalty-program issue event.
 
-Raw type: `object`
+Raw type: source text/date representation.
 
-Intended warehouse type: `TIMESTAMP`
+Warehouse type: timestamp.
 
 Observed range:
 
-- Minimum: `2017-04-04 18:24:18`
+- minimum: `2017-04-04 18:24:18`
+- maximum: `2019-03-15 21:50:56`
 
-- Maximum: `2019-03-15 21:50:56`
-
-Missing values: **0**
+Missing values: **0**.
 
 ### `first_redeem_date`
 
 Timestamp associated with the customer's first redemption event.
 
-Raw type: `object`
+Raw type: source text/date representation.
 
-Intended warehouse type: `TIMESTAMP`
+Warehouse type: timestamp.
 
-Observed range among non-null records:
+Observed non-null range:
 
-- Minimum: `2017-04-11 09:42:20`
+- minimum: `2017-04-11 09:42:20`
+- maximum: `2019-11-20 01:14:10`
 
-- Maximum: `2019-11-20 01:14:10`
-
-Missing values: **35,469**
+Missing values: **35,469**.
 
 Additional quality finding:
 
-- **536** clients have a `first_redeem_date` earlier than `first_issue_date`
+- **536** clients have `first_redeem_date < first_issue_date`.
 
-- This is a small anomaly and should be flagged rather than silently corrected
+The raw value is preserved. Downstream modeling uses explicit derived fields/flags rather than silently rewriting the source.
 
-Important:
-
-A missing redemption date should not automatically be treated as an error; it may indicate that the client had not yet redeemed.
-
-Potential derived features:
-
-- `has_redeemed`
-
-- `redeem_delay_days`
-
-- `redeem_before_issue_flag`
+A missing redemption date is not automatically an error; it may indicate that the client had not redeemed.
 
 ### `age`
 
 Customer age.
 
-Raw type: `int64`
-
-Missing values: **0**
+Raw type: integer.
 
 Observed summary:
 
-- Minimum: **-7491**
-
-- Median: **45**
-
+- minimum: **-7,491**
 - 25th percentile: **34**
-
+- median: **45**
 - 75th percentile: **59**
+- maximum: **1,901**
 
-- Maximum: **1901**
-
-The central distribution is plausible, but the field contains obvious invalid values.
-
-Important:
-
-Raw values should be preserved. A later cleaned layer should create a validated/nullable age field and an explicit invalid-age flag rather than overwriting the source.
+The central distribution is plausible, but the extremes are clearly invalid. Raw values are preserved; the transformed layer should use a validated/nullable age plus an explicit quality flag rather than overwriting the source value.
 
 ### `gender`
 
-Categorical customer gender code.
+Categorical source code.
 
-Raw type: `object`
-
-Missing values: **0**
-
-Observed values:
+Observed counts:
 
 - `U`: **185,706**
-
 - `F`: **147,649**
-
 - `M`: **66,807**
 
 Observed proportions:
 
 - `U`: **46.41%**
-
 - `F`: **36.90%**
-
 - `M`: **16.69%**
 
-The exact semantic meaning of `U` should not be expanded beyond the source code without authoritative documentation.
+The exact semantic expansion of `U` is not asserted without authoritative source documentation.
 
 ---
 
@@ -206,24 +160,21 @@ The exact semantic meaning of `U` should not be expanded beyond the source code 
 
 ## Purpose
 
-Contains product-level metadata and hierarchical product attributes.
+Contains product-level metadata and anonymized product-hierarchy attributes.
 
 ## Grain
 
 **One row per product.**
 
-## Primary Key
+## Primary key
 
 `product_id`
 
 ## Validation
 
 - Rows: **43,038**
-
 - Unique `product_id`: **43,038**
-
 - Duplicate `product_id`: **0**
-
 - Duplicate rows: **0**
 
 ## Columns
@@ -232,131 +183,98 @@ Contains product-level metadata and hierarchical product attributes.
 
 Unique product identifier.
 
-Raw type: `object / string`
+Raw type: string.
 
 Constraints:
 
-- Not null
-
-- Unique
+- not null
+- unique
 
 ### `level_1`
 
-Highest-level hashed product hierarchy/category attribute.
+Highest-level anonymized product hierarchy/category attribute.
 
-Raw type: `object`
-
-Missing values: **3**
-
-Unique observed values: **3**
+- missing values: **3**
+- non-null unique values: **3**
 
 ### `level_2`
 
-Second-level hashed product hierarchy/category attribute.
+Second-level anonymized hierarchy attribute.
 
-Raw type: `object`
-
-Missing values: **3**
-
-Unique observed values: **42**
+- missing values: **3**
+- unique observed values: **42**
 
 ### `level_3`
 
-Third-level hashed product hierarchy/category attribute.
+Third-level anonymized hierarchy attribute.
 
-Raw type: `object`
-
-Missing values: **3**
-
-Unique observed values: **201**
+- missing values: **3**
+- unique observed values: **201**
 
 ### `level_4`
 
-Fourth-level hashed product hierarchy/category attribute.
+Fourth-level anonymized hierarchy attribute.
 
-Raw type: `object`
+- missing values: **3**
+- unique observed values: **790**
 
-Missing values: **3**
-
-Unique observed values: **790**
-
-The `level_1` through `level_4` columns appear to form a hierarchical product classification. The exact semantic category names are anonymized.
+`level_1` through `level_4` behave as a hierarchical product classification, but the underlying category names are anonymized.
 
 ### `segment_id`
 
 Product segment identifier.
 
-Raw type: `float64`
-
-Missing values: **1,572** (\~3.65%)
-
-Unique observed values: **116**
+- raw type: numeric/nullable
+- missing values: **1,572** (~3.65%)
+- unique observed values: **116**
 
 ### `brand_id`
 
-Hashed brand identifier.
+Anonymized brand identifier.
 
-Raw type: `object`
-
-Missing values: **5,200** (\~12.08%)
-
-Unique observed values: **4,296**
+- missing values: **5,200** (~12.08%)
+- unique observed values: **4,296**
 
 ### `vendor_id`
 
-Hashed vendor identifier.
+Anonymized vendor identifier.
 
-Raw type: `object`
-
-Missing values: **34** (\~0.08%)
-
-Unique observed values: **3,193**
+- missing values: **34** (~0.08%)
+- unique observed values: **3,193**
 
 ### `netto`
 
 Numeric product attribute.
 
-Raw type: `float64`
+- missing values: **3**
+- unique observed values: **780**
 
-Missing values: **3**
+**Semantics unresolved.**
 
-Unique observed values: **780**
+The word `netto` could suggest a net weight, net price/value, or another source-specific measure, but the unit and intended business definition have not been verified for this dataset.
 
-Observed values range widely, but the precise business meaning/unit is not conclusively documented. The raw field name should be retained until an authoritative definition is established.
-
-**Unverified interpretation hypotheses (based on the word "netto," not on an X5 field definition):**
-
-- Net product weight, potentially excluding packaging or container weight.
-- Net product price/value, potentially excluding a tax or another charge.
-
-These alternatives imply different units and cannot be treated as interchangeable. Neither the unit, the deduction involved, nor the intended meaning of `netto` has been confirmed for this dataset. Do **not** rename it to `net_weight`/`net_price`, convert its units, or use it as a verified monetary measure.
+Do not rename this field to `net_weight`, `net_price`, or another interpreted name, convert its units, or treat it as a verified monetary measure without authoritative documentation.
 
 ### `is_own_trademark`
 
-Indicator for whether the product belongs to the retailer's own trademark/private-label group.
+Binary retailer-own-trademark/private-label indicator.
 
-Raw type: `int64`
-
-Observed domain: `{0, 1}`
+Observed domain: `{0, 1}`.
 
 Counts:
 
 - `0`: **41,524**
-
 - `1`: **1,514**
 
 ### `is_alcohol`
 
-Indicator for whether the product is classified as alcohol.
+Binary alcohol classification indicator.
 
-Raw type: `int64`
-
-Observed domain: `{0, 1}`
+Observed domain: `{0, 1}`.
 
 Counts:
 
 - `0`: **40,645**
-
 - `1`: **2,393**
 
 ---
@@ -365,44 +283,34 @@ Counts:
 
 ## Purpose
 
-Contains historical customer purchase behavior prior to the uplift-modeling marketing outcome period.
+Contains historical customer purchase behavior before the uplift-modeling outcome period. It is the primary behavioral source for transaction analytics, customer feature engineering, and uplift modeling.
 
-This is the primary behavioral source for transaction analytics, customer feature engineering, and later uplift modeling.
+## Full-table validation
 
-## Full-Table Validation
-
-The complete purchase source contains:
-
-- Total raw rows: **45,786,568**
-- Full transaction timestamp range:
-  - Minimum: `2018-11-21 21:02:33`
-  - Maximum: `2019-03-18 23:40:03`
-- Purchase client IDs missing from `clients`: **0**
-- Purchase product IDs missing from `products`: **0**
+- Raw rows: **45,786,568**
+- Minimum transaction timestamp: `2018-11-21 21:02:33`
+- Maximum transaction timestamp: `2019-03-18 23:40:03`
+- Orphan client IDs: **0**
+- Orphan product IDs: **0**
 - Invalid transaction timestamps: **0**
+- Missing `trn_sum_from_red`: **42,743,212** (~93.35%)
+- Missing values in other purchase columns: **0**
 
-Missing values:
+Key-grain findings:
 
-- `trn_sum_from_red`: **42,743,212** (~93.35%)
-- All other purchase columns: **0**
-
-Snowflake full-table validation established:
-
-- Distinct raw `transaction_id` values: **8,045,201**
-- Validated customer transactions at `(transaction_id, client_id)` grain: **8,045,229**
-- `transaction_id` values reused across distinct customers: **28**
+- Distinct raw `transaction_id`: **8,045,201**
+- Validated `(transaction_id, client_id)` transactions: **8,045,229**
+- `transaction_id` values reused across customers: **28**
 - Duplicate `(transaction_id, product_id)` combinations: **3**
 - Duplicate `(transaction_id, client_id, product_id)` combinations: **0**
 
-This means `transaction_id` alone is not a globally unique transaction key.
+`transaction_id` alone is therefore **not** a globally unique transaction key.
 
-## Validated Grains
-
-### Transaction grain
+## Validated transaction grain
 
 **One row per `(transaction_id, client_id)` pair.**
 
-Full-table validation confirmed that the following fields are internally consistent at this composite grain:
+The following fields are internally consistent at this grain:
 
 - `transaction_datetime`
 - `store_id`
@@ -412,24 +320,18 @@ Full-table validation confirmed that the following fields are internally consist
 - `regular_points_spent`
 - `express_points_spent`
 
-A later dbt model should create a stable surrogate `transaction_key` from the validated source business key rather than using `transaction_id` alone.
+The warehouse creates a stable `transaction_key` from the validated composite source business key rather than using `transaction_id` alone.
 
-### Transaction-item grain
+## Validated transaction-item grain
 
 **One row per `(transaction_id, client_id, product_id)` combination.**
 
-Full-table duplicate count at this grain: **0**
+Full-table duplicate count at this grain: **0**.
 
-This is the validated business grain for product-line records.
+## Referential integrity
 
-## Referential Integrity
-
-Full-table validation confirms:
-
-- `purchases.client_id` → `clients.client_id`: **0 orphan client IDs**
-- `purchases.product_id` → `products.product_id`: **0 orphan product IDs**
-
-These relationships should become dbt relationship tests.
+- `purchases.client_id → clients.client_id`: **0 orphan IDs**
+- `purchases.product_id → products.product_id`: **0 orphan IDs**
 
 ## Columns
 
@@ -437,145 +339,111 @@ These relationships should become dbt relationship tests.
 
 Customer associated with the transaction.
 
-Raw type: `object / string`
+Foreign key: `clients.client_id`.
 
-Foreign key: `clients.client_id`
-
-Important:
-
-`client_id` is part of the validated transaction business key because some `transaction_id` values are reused across customers.
+Part of the validated transaction business key.
 
 ### `transaction_id`
 
 Source transaction/basket identifier.
 
-Raw type: `object / string`
-
 Important:
 
-- It is repeated across product rows within a transaction.
-- It is **not globally unique across customer transactions**.
-- **28** source transaction IDs are reused across different customers.
+- repeated across product rows within a transaction
+- not globally unique across customer transactions
+- 28 values reused across different customers
 
-Do not use `transaction_id` alone as the primary key of the transaction fact or as the only join key to transaction items.
+Do not use `transaction_id` alone as the transaction-fact primary key or as the only join key to transaction items.
 
 ### `transaction_datetime`
 
-Timestamp of the purchase transaction.
+Purchase transaction timestamp.
 
-Raw type: `object`
+Observed range:
 
-Intended warehouse type: `TIMESTAMP`
+- minimum: `2018-11-21 21:02:33`
+- maximum: `2019-03-18 23:40:03`
 
-Full observed range:
-
-- Minimum: `2018-11-21 21:02:33`
-- Maximum: `2019-03-18 23:40:03`
-
-Full-table validation confirms this is stable within `(transaction_id, client_id)`.
+Stable within `(transaction_id, client_id)`.
 
 ### `regular_points_received`
 
-Regular loyalty points received.
+Regular loyalty points received/earned.
 
-Raw type: `float64`
+Transaction-level field repeated across raw product rows.
 
-Full-table validation confirms this is a transaction-level field repeated across product-line rows.
+Observed behavior:
 
-Observed loyalty behavior at transaction grain:
-
-- Points received are positive when earned.
-- **98.13%** of transactions earn regular or express points.
-- Average regular points received per transaction: **3.88**
+- positive when earned
+- average regular points received per transaction: **3.88**
 
 ### `express_points_received`
 
-Express/promotional loyalty points received.
+Express/promotional loyalty points received/earned.
 
-Raw type: `float64`
+Transaction-level field repeated across raw product rows.
 
-Full-table validation confirms this is a transaction-level field repeated across product-line rows.
+Average express points received per transaction: **0.04**.
 
-Observed loyalty behavior:
-
-- Points received are positive when earned.
-- Average express points received per transaction: **0.04**
+Across regular and express received points, **98.13%** of transactions earn points.
 
 ### `regular_points_spent`
 
 Regular loyalty points spent/redeemed.
 
-Raw type: `float64`
+Transaction-level field repeated across raw product rows.
 
-Full-table validation confirms this is a transaction-level field repeated across product-line rows.
+Source convention:
 
-Important source convention:
+- redemption is stored as a **negative** value
+- minimum transaction-level value: **-5,066**
+- maximum: **0**
+- transactions with negative regular-point spend: **495,331**
+- transactions with positive regular-point spend: **0**
 
-- Redemption is stored as a **negative** value.
-- Minimum observed transaction-level value: **-5,066**
-- Maximum observed transaction-level value: **0**
-- Transactions with negative regular-point spend: **495,331**
-- Transactions with positive regular-point spend: **0**
+For analytics, preserve the raw signed field and derive a positive redemption magnitude separately, for example `ABS(regular_points_spent)` when the source value is negative.
 
-For analytics, preserve the raw negative field and derive a positive redemption amount separately, for example:
-
-`regular_points_redeemed = ABS(regular_points_spent)` when `regular_points_spent < 0`.
-
-Average regular points redeemed when used: **59.31**
+Average regular points redeemed when used: **59.31**.
 
 ### `express_points_spent`
 
 Express/promotional loyalty points spent/redeemed.
 
-Raw type: `float64`
+Source convention:
 
-Full-table validation confirms this is a transaction-level field repeated across product-line rows.
+- redemption is stored as a **negative** value
+- minimum: **-300**
+- maximum: **0**
+- transactions with negative express-point spend: **90,469**
+- transactions with positive express-point spend: **0**
 
-Important source convention:
+Average express points redeemed when used: **28.39**.
 
-- Redemption is stored as a **negative** value.
-- Minimum observed transaction-level value: **-300**
-- Maximum observed transaction-level value: **0**
-- Transactions with negative express-point spend: **90,469**
-- Transactions with positive express-point spend: **0**
-
-Average express points redeemed when used: **28.39**
-
-Across regular and express points, **6.27%** of transactions contain at least one redemption.
+Across regular and express point types, **6.27%** of transactions contain at least one redemption.
 
 ### `purchase_sum`
 
-Transaction monetary amount.
+Transaction monetary amount in the source's currency/unit.
 
-Raw type: `float64`
+Stable within `(transaction_id, client_id)` and repeated across product rows.
 
-Full-table validation confirms this is stable within `(transaction_id, client_id)` and repeated across product rows.
+Because it is repeated at raw item grain, summing `purchase_sum` directly across `purchases` would overcount purchase value. The field belongs in `fact_transaction`.
 
-Important:
-
-Because `purchase_sum` is repeated across product rows, summing it directly at raw transaction-item grain would overcount total purchase value.
-
-This field belongs in a transaction-level fact table.
-
-The source does not provide a validated product-level allocation of `purchase_sum`, so product/category revenue should not be inferred from this field.
+The source does not provide a validated product-level allocation of `purchase_sum`; product/category revenue should not be inferred by attaching the full transaction amount to each product line.
 
 ### `store_id`
 
-Store identifier associated with the transaction.
+Anonymized store identifier.
 
-Raw type: `object / string`
+Distinct stores observed: **13,882**.
 
-Full business profiling observed **13,882** distinct stores.
-
-No descriptive store metadata is currently available beyond the identifier, so a separate `dim_store` is not yet justified.
+No descriptive store metadata is available, so `store_id` remains on `fact_transaction` rather than being promoted to an otherwise empty dimension.
 
 ### `product_id`
 
-Product associated with the line item.
+Product identifier.
 
-Raw type: `object / string`
-
-Foreign key: `products.product_id`
+Foreign key: `products.product_id`.
 
 Part of the validated transaction-item grain.
 
@@ -583,54 +451,39 @@ Part of the validated transaction-item grain.
 
 Quantity of the product purchased.
 
-Raw type: `float64`
-
-This is an item-level measure.
+Item-level measure.
 
 ### `trn_sum_from_iss`
 
-Numeric transaction-item-related field.
-
-Raw type: `float64`
+Numeric item-level field.
 
 Observed behavior:
 
-- Varies within most transactions.
-- Full-table behavior confirms it should remain at item grain.
-- It should not be collapsed into the transaction fact.
+- varies within most transactions
+- remains at transaction-item grain
+- should not be collapsed into the transaction fact
 
-**Unverified interpretation hypotheses (based on the column abbreviation and third-party/generated explanations):**
+**Semantics unresolved.**
 
-- `iss` might refer to **issuance**, such as an amount associated with issuing loyalty benefits or points.
-- Alternatively, `iss` might refer to an **issuer** or another source-system term.
-
-The expansion of `iss`, the unit (money, points, or otherwise), and the sign convention have **not** been verified for X5. The field's item-level behavior does not establish what it measures. Retain `trn_sum_from_iss` unchanged and do not treat it as validated revenue or loyalty-points issuance.
+`iss` may refer to issuance, issuer, or another source-system concept. The expansion, unit, and sign convention have not been verified. Keep the source name unchanged and do not treat it as verified revenue or loyalty-points issuance.
 
 ### `trn_sum_from_red`
 
-Numeric transaction-item-related field.
+Numeric item-level field.
 
-Raw type: `float64`
+- missing values: **42,743,212** (~93.35%)
+- can vary within a transaction
+- does not reliably reconcile with `purchase_sum`
 
-Missing values in full dataset: **42,743,212** (~93.35%)
+**Semantics unresolved.**
 
-Observed behavior:
+`red` may refer to redemption, but the field has not been established as points, currency, discount, or another unit. It has not been shown to equal the separately validated transaction-level `regular_points_spent` or `express_points_spent` fields.
 
-- Highly sparse.
-- Can vary within a transaction.
-- Does not reliably reconcile with `purchase_sum`.
+Keep the source name and do not derive item-level redemption value without authoritative documentation.
 
-**Unverified interpretation hypothesis (based on the column abbreviation and third-party/generated explanations):**
+## Transaction-level vs item-level structure
 
-- `red` might mean **redemption**, possibly an item-level amount associated with redeeming loyalty benefits or points.
-
-This does **not** establish that the field contains points redeemed, a currency amount, or a discount. Its ~93.35% missingness and failure to reconcile consistently with `purchase_sum` leave the exact definition unresolved. It has not been shown to equal the separately validated transaction-level `regular_points_spent` or `express_points_spent` fields. Keep the source name and avoid deriving item-level redemption value without authoritative documentation.
-
-## Transaction-Level vs Item-Level Structure
-
-The raw `purchases` source contains two logical grains.
-
-Validated transaction-level fields:
+Transaction-level fields:
 
 - `transaction_id`
 - `client_id`
@@ -642,7 +495,7 @@ Validated transaction-level fields:
 - `regular_points_spent`
 - `express_points_spent`
 
-Validated transaction-item-level fields:
+Transaction-item-level fields:
 
 - `transaction_id`
 - `client_id`
@@ -651,119 +504,88 @@ Validated transaction-item-level fields:
 - `trn_sum_from_iss`
 - `trn_sum_from_red`
 
-The transaction fact must use the composite business grain `(transaction_id, client_id)` or a surrogate key derived from it. The transaction-item fact must retain the corresponding transaction key plus `product_id`.
-
 ---
 
 # 4. `uplift_train`
 
 ## Purpose
 
-Contains treatment assignment and observed outcome information for the training population used in uplift modeling.
+Contains treatment assignment and observed outcome information for the development population used in uplift modeling.
 
 ## Grain
 
 **One row per training client.**
 
-## Primary Key
+## Primary key
 
 `client_id`
 
 ## Validation
 
 - Rows: **200,039**
-
 - Unique `client_id`: **200,039**
-
 - Duplicate `client_id`: **0**
-
-- Duplicate rows: **0**
-
 - Missing values: **0**
 
 ## Columns
 
 ### `client_id`
 
-Unique customer identifier.
+Customer identifier.
 
-Foreign key: `clients.client_id`
+Foreign key: `clients.client_id`.
 
 ### `treatment_flg`
 
-Binary treatment indicator.
+Binary source treatment indicator.
 
-Raw type: `int64`
+Observed domain: `{0, 1}`.
 
-Observed domain: `{0, 1}`
-
-Observed counts:
+Counts:
 
 - `0`: **100,058**
-
 - `1`: **99,981**
 
-Observed proportions:
+Proportions:
 
-- `0`: **50.0192%**
+- control (`0`): **50.0192%**
+- treatment (`1`): **49.9808%**
 
-- `1`: **49.9808%**
+The groups are nearly perfectly balanced in size.
 
-The treatment/control groups are nearly perfectly balanced.
-
-Important:
-
-Do not describe treatment assignment as randomized unless the assignment mechanism is verified from authoritative dataset documentation.
+Do not describe the assignment as randomized unless the mechanism is verified from authoritative source documentation.
 
 ### `target`
 
 Binary observed outcome.
 
-Raw type: `int64`
+Observed domain: `{0, 1}`.
 
-Observed domain: `{0, 1}`
-
-Observed counts:
+Counts:
 
 - `0`: **76,037**
-
 - `1`: **124,002**
 
-Observed proportions:
+Proportions:
 
 - `0`: **38.0111%**
-
 - `1`: **61.9889%**
 
-## Treatment × Outcome Distribution
+Treatment × outcome distribution:
 
-| treatment_flg | target = 0 | target = 1 | Total |
-
+| `treatment_flg` | target = 0 | target = 1 | Total |
 |---|---:|---:|---:|
-
 | 0 | 39,695 | 60,363 | 100,058 |
-
 | 1 | 36,342 | 63,639 | 99,981 |
-
 | Total | 76,037 | 124,002 | 200,039 |
 
-Observed within-group target rates:
+Observed target rates:
 
-| Group | Target = 0 | Target = 1 |
+- control: **60.3280%**
+- treatment: **63.6511%**
+- raw difference: **+3.3231 percentage points**
 
-|---|---:|---:|
-
-| Control (`treatment_flg = 0`) | 39.6720% | 60.3280% |
-
-| Treatment (`treatment_flg = 1`) | 36.3489% | 63.6511% |
-
-Raw observed difference in target rate:
-
-`63.6511% - 60.3280% = 3.3231 percentage points`
-
-Important:
-
-This is a descriptive difference only. It should **not** yet be described as a causal treatment effect unless the treatment-assignment assumptions required for causal interpretation are established.
+This difference is descriptive. It is not labeled a causal effect without the assumptions required for causal identification.
 
 ---
 
@@ -771,216 +593,115 @@ This is a descriptive difference only. It should **not** yet be described as a c
 
 ## Purpose
 
-Contains the client IDs from the original competition test population.
-
-Treatment and target values are not included.
+Contains the client IDs from the original competition scoring/test population. Treatment and target values are not included.
 
 ## Grain
 
-**One row per test client.**
+**One row per scoring client.**
 
-## Primary Key
+## Primary key
 
 `client_id`
 
 ## Validation
 
 - Rows: **200,123**
-
 - Unique `client_id`: **200,123**
-
 - Duplicate `client_id`: **0**
-
 - Missing `client_id`: **0**
-
-## Columns
 
 ### `client_id`
 
-Unique customer identifier.
+Customer identifier.
 
-Foreign key: `clients.client_id`
+Foreign key: `clients.client_id`.
 
 ---
 
-# 6. Verified Dataset Relationships
+# 6. Verified source relationships
 
-## Clients → Uplift Split
+## Clients → uplift split
 
-The complete client population is partitioned exactly between train and test.
+The complete client population is partitioned exactly between development and scoring populations.
 
-Verified:
+- train/test overlap: **0**
+- train + test unique clients: **400,162**
+- clients absent from train/test: **0**
+- train/test clients absent from `clients`: **0**
 
-- Train/test overlap: **0**
+## Clients → purchases
 
-- Train + test unique clients: **400,162**
+`clients.client_id → purchases.client_id`
 
-- Clients absent from train/test: **0**
+Orphan purchase client IDs: **0**.
 
-- Train/test clients absent from `clients`: **0**
+## Products → purchases
 
-Relationship:
+`products.product_id → purchases.product_id`
+
+Orphan purchase product IDs: **0**.
+
+---
+
+# 7. Historical timeline and leakage boundary
+
+The analytical flow is conceptually:
 
 ```text
-
-clients
-
-  |
-
-  |-- uplift_train
-
-  |
-
-  +-- uplift_test
-
+customer attributes
+      +
+historical purchase behavior
+      ↓
+feature cutoff
+      ↓
+treatment / no treatment
+      ↓
+observed target outcome
 ```
 
-## Clients → Purchases
+The feature cutoff used by the dbt feature marts and model artifacts is:
 
-Relationship:
+`2019-03-19 00:00:00`
 
-`clients.client_id` → `purchases.client_id`
+Validation found **0** historical transactions at or after the cutoff.
 
-Full-table validation:
-
-- Orphan purchase client IDs: **0**
-
-## Products → Purchases
-
-Relationship:
-
-`products.product_id` → `purchases.product_id`
-
-Full-table validation:
-
-- Orphan purchase product IDs: **0**
+The feature pipeline is intended to prevent post-cutoff/post-treatment information from entering the model inputs.
 
 ---
 
-# 7. Analytical Timeline
+# 8. Data-quality summary
 
-The dataset can be interpreted conceptually as:
-
-```text
-
-Client attributes
-
-        \+
-
-Historical purchase behavior
-
-        |
-
-        v
-
-Marketing treatment / no treatment
-
-        |
-
-        v
-
-Observed target outcome
-
-```
-
-Historical customer features will eventually be constructed from:
-
-- recency
-
-- frequency
-
-- monetary behavior
-
-- basket behavior
-
-- product/category behavior
-
-- loyalty-point behavior
-
-- customer tenure
-
-- purchase trends
-
-A key requirement will be preventing post-treatment information from leaking into model features.
-
----
-
-# 8. Current Data Quality and Warehouse Validation Findings
-
-1. Primary source keys are unique for:
-   - `clients.client_id`
-   - `products.product_id`
-   - `uplift_train.client_id`
-   - `uplift_test.client_id`
-
-2. Train and test are mutually exclusive and collectively cover all **400,162** clients.
-
+1. Primary source keys are unique for `clients`, `products`, `uplift_train`, and `uplift_test`.
+2. Train and test form a complete non-overlapping partition of all **400,162** clients.
 3. `first_redeem_date` contains **35,469** missing values.
-
 4. **536** clients have `first_redeem_date < first_issue_date`.
-
-5. `age` contains obvious invalid values, with observed extremes of **-7491** and **1901**.
-
-6. Product missingness is concentrated mainly in:
-   - `brand_id`: ~12.08%
-   - `segment_id`: ~3.65%
-   - `vendor_id`: ~0.08%
-
-7. Product binary fields are valid:
-   - `is_own_trademark ∈ {0,1}`
-   - `is_alcohol ∈ {0,1}`
-
-8. Treatment and target fields are valid binary variables.
-
-9. The full purchase table contains:
-   - **45,786,568** rows
-   - **0** orphan client IDs
-   - **0** orphan product IDs
-   - **0** invalid timestamps
-   - **42,743,212** missing `trn_sum_from_red` values
-
-10. `transaction_id` alone is not a globally unique transaction key:
-    - Distinct `transaction_id` values: **8,045,201**
-    - Validated `(transaction_id, client_id)` transactions: **8,045,229**
-    - Reused source transaction IDs across customers: **28**
-
-11. Validated transaction grain:
-    - `(transaction_id, client_id)`
-    - All tested transaction-level attributes are consistent at this grain.
-
-12. Validated transaction-item grain:
-    - `(transaction_id, client_id, product_id)`
-    - Full-table duplicate count: **0**
-
-13. `purchase_sum` and all four loyalty-point fields are transaction-level values repeated across product rows and must not be summed at raw item grain.
-
-14. Loyalty-point redemption uses a negative source convention:
-    - received/earned points are positive
-    - spent/redeemed points are negative
-    - **98.13%** of transactions earn points
-    - **6.27%** of transactions redeem points
-
-15. `trn_sum_from_iss` and `trn_sum_from_red` remain item-level fields. Their exact business semantics are still unresolved.
-
-16. The Snowflake raw layer has been loaded from S3 and preserves source-level lineage metadata.
+5. `age` contains clearly invalid extremes of **-7,491** and **1,901**.
+6. Product missingness is concentrated in `brand_id` (~12.08%), `segment_id` (~3.65%), and `vendor_id` (~0.08%).
+7. `is_own_trademark` and `is_alcohol` contain only `{0,1}`.
+8. `treatment_flg` and `target` are valid binary fields.
+9. The purchase source contains **45,786,568** rows, 0 orphan clients, 0 orphan products, and 0 invalid timestamps.
+10. `trn_sum_from_red` is missing in **42,743,212** rows (~93.35%).
+11. `transaction_id` is not globally unique; `(transaction_id, client_id)` is the validated transaction grain.
+12. `(transaction_id, client_id, product_id)` is the validated item grain with 0 duplicates.
+13. `purchase_sum` and loyalty-point fields are transaction-level values repeated across product rows.
+14. Loyalty redemption is represented by negative source values in the `*_points_spent` fields.
+15. `netto`, `trn_sum_from_iss`, and `trn_sum_from_red` retain unresolved business semantics.
 
 ---
 
-# 9. Business Profiling Summary
-
-Full-table Snowflake analysis at the validated grains produced:
+# 9. Business profiling summary
 
 ## Transaction and customer profile
 
-- Validated transactions: **8,045,229**
+- Validated customer transactions: **8,045,229**
 - Purchasing customers: **400,162**
-- Total purchase value: **3,444,393,840.48**
+- Total purchase value: **3,444,393,840.48** in the source's currency/unit
 - Average basket value: **428.13**
 - Average product lines per transaction: **5.69**
 - Average unique products per transaction: **5.69**
 - Average units per transaction: **7.10**
 
-All **400,162** clients appear in the historical purchase data.
+All **400,162** clients appear in historical purchase data.
 
 ## Customer behavior
 
@@ -989,167 +710,444 @@ All **400,162** clients appear in the historical purchase data.
 - Repeat-customer rate: **98.07%**
 - Average customer spend: **8,607.50**
 - Median customer spend: **6,111.35**
-- Average of customer-level average basket values: **496.31**
-
-The high repeat rate supports behavioral feature engineering such as recency, frequency, spend, basket behavior, category affinity, and loyalty behavior.
+- Average customer-level average basket value: **496.31**
 
 ## Temporal behavior
 
-- Historical purchase activity spans **118 calendar dates**
-- Daily transaction volume, active customers, purchase value, and average basket value vary materially across the observation window
+Historical purchase activity spans **118 calendar dates**.
 
-This supports a future `mart_purchase_daily` and time-based customer features.
+Daily transaction volume, active customers, purchase value, and average basket value vary materially across the window.
 
 ## Product/category behavior
 
-- `level_1` contains **3 non-null categories**
-- A null category group is produced by the **3 products** with missing `level_1`
+`level_1` contains **3 non-null anonymized categories** plus a null group from the three products with missing `level_1`.
 
-Category analysis should use transaction presence, customers, products, and quantity rather than attributing transaction-level `purchase_sum` to products.
+Category analysis uses transaction presence, customers, products, quantity, and line shares rather than assigning the full transaction-level `purchase_sum` to product rows.
 
 ## Store behavior
 
 - Distinct stores: **13,882**
-- Store transaction volume and basket behavior vary materially
 
-However, because the dataset currently provides only an anonymous `store_id` and no descriptive store attributes, `store_id` should remain on `fact_transaction` for now rather than creating an otherwise empty store dimension.
+Because only an anonymous identifier is available, `store_id` remains on the transaction fact rather than creating a descriptive store dimension.
 
 ---
 
-# 10. Validated Warehouse Model
-
-The full-table Snowflake validation confirms that the raw purchase source should be split into separate transaction-level and item-level facts.
-
-```text
-                         dim_customer
-                              |
-                 +------------+-------------+
-                 |                          |
-                 v                          v
-          fact_transaction       fact_treatment_outcome
-                 |
-                 | transaction_key
-                 v
-       fact_transaction_item
-                 |
-                 | product_id
-                 v
-             dim_product
-```
+# 10. Core warehouse models
 
 ## `dim_customer`
 
-Grain: **one row per client**
+**Grain:** one row per client.
 
-Primary source: `clients`
+**Rows:** 400,162.
+
+**Primary source:** `clients`.
 
 Purpose:
 
 - customer demographics
 - loyalty-program dates
-- cleaned/validated customer attributes
-- explicit quality flags for invalid values
+- cleaned/validated attributes
+- explicit data-quality indicators
 
 ## `dim_product`
 
-Grain: **one row per product**
+**Grain:** one row per product.
 
-Primary source: `products`
+**Rows:** 43,038.
+
+**Primary source:** `products`.
 
 Purpose:
 
-- product hierarchy
-- segment/brand/vendor metadata
-- product flags
+- anonymized hierarchy attributes
+- segment/brand/vendor identifiers
+- private-label and alcohol indicators
 
 ## `fact_transaction`
 
-Grain: **one row per `(transaction_id, client_id)`**
+**Grain:** one row per `(transaction_id, client_id)`.
 
-Primary source: transaction-level attributes from `purchases`
+**Rows:** 8,045,229.
 
-Key design:
+Purpose:
 
-- create a surrogate `transaction_key` from the validated composite source key
-- retain the original `transaction_id` and `client_id` for lineage
+- stable `transaction_key`
+- transaction timestamp
+- customer/store relationship
+- purchase amount
+- loyalty earning/redemption fields
 
-Expected fields:
-
-- `transaction_key`
-- `transaction_id`
-- `client_id`
-- `transaction_datetime`
-- `store_id`
-- `purchase_sum`
-- `regular_points_received`
-- `express_points_received`
-- `regular_points_spent`
-- `express_points_spent`
-- derived positive redemption measures such as `regular_points_redeemed` and `express_points_redeemed`
+The fact retains source `transaction_id` and `client_id` for lineage while using the derived key for downstream joins.
 
 ## `fact_transaction_item`
 
-Grain: **one row per `(transaction_id, client_id, product_id)`**
+**Grain:** one row per `(transaction_id, client_id, product_id)`.
 
-Primary source: item-level attributes from `purchases`
+**Rows:** 45,786,568.
 
-Expected fields:
+Purpose:
 
-- `transaction_key`
-- `transaction_id`
-- `client_id`
-- `product_id`
-- `product_quantity`
-- `trn_sum_from_iss`
-- `trn_sum_from_red`
+- transaction/product relationship
+- product quantity
+- unresolved item-level source fields `trn_sum_from_iss` and `trn_sum_from_red`
 
-The fact should join to `fact_transaction` through `transaction_key`, not `transaction_id` alone.
+It joins to `fact_transaction` through `transaction_key`, not `transaction_id` alone.
 
 ## `fact_treatment_outcome`
 
-Grain: **one row per uplift-training client**
+**Grain:** one row per uplift-training client.
 
-Primary source: `uplift_train`
+**Rows:** 200,039.
 
-Expected fields:
+Purpose:
 
-- `client_id`
-- `treatment_flg`
-- `target`
-
-## Date and store design
-
-- `dim_date`: analytically useful and a reasonable future dimension because the project includes daily marts, monitoring, and time-based modeling.
-- `dim_store`: deferred for now because the source contains only anonymous `store_id` values and no descriptive store metadata.
-
-## Planned analytical marts
-
-- `mart_customer_360`
-- `mart_customer_activity`
-- `mart_product_performance`
-- `mart_purchase_daily`
-- `mart_customer_features`
-- `mart_uplift_training`
+- treatment indicator
+- observed target
+- link from the customer dimension into the labeled modeling population
 
 ---
 
-# 11. Deferred Decisions
+# 11. Analytical marts
 
-The raw audit and Snowflake full-table validation are complete. Remaining decisions are intentionally deferred to the transformation/modeling stages:
+## `mart_customer_activity`
 
-- Confirm exact business semantics of:
-  - `netto`
-  - `trn_sum_from_iss`
-  - `trn_sum_from_red`
+**Grain:** one row per customer.
 
-- Define the final cleaning rule for invalid ages.
+**Rows:** 400,162.
 
-- Define how to handle the **536** redemption-before-issue anomalies.
+Purpose: customer-level activity and transaction behavior for reusable analysis.
 
-- Decide the exact implementation and naming of the dbt-generated `transaction_key`.
+## `mart_purchase_daily`
 
-- Decide whether to materialize `dim_date` immediately or when daily/feature marts are introduced.
+**Grain:** one row per historical calendar date.
 
-- Revisit `dim_store` only if additional store metadata becomes available or store-level modeling requires a dedicated dimension.
+**Rows:** 118.
 
-- Establish treatment-assignment assumptions before making causal claims.
+Purpose: daily transaction/customer/purchase monitoring.
+
+## `mart_product_performance`
+
+**Grain:** one row per product.
+
+**Rows:** 43,038.
+
+Purpose: product activity and customer/product usage metrics without misallocating transaction-level purchase value.
+
+## `mart_customer_360`
+
+**Grain:** one row per customer.
+
+**Rows:** 400,162.
+
+Purpose: consolidated customer analytical profile combining demographics, activity, monetary behavior, baskets, loyalty, and product/category behavior.
+
+---
+
+# 12. ML feature marts
+
+## `mart_customer_features`
+
+**Grain:** one row per customer.
+
+**Rows:** 400,162.
+
+**Feature cutoff:** `2019-03-19 00:00:00`.
+
+Purpose: reusable customer feature table used to construct the labeled development and unlabeled scoring populations.
+
+## `mart_uplift_training`
+
+**Grain:** one row per uplift-training customer.
+
+**Rows:** 200,039.
+
+Contains:
+
+- `client_id`
+- the model feature contract
+- treatment indicator
+- target outcome
+
+## `mart_uplift_scoring`
+
+**Grain:** one row per uplift-test/scoring customer.
+
+**Rows:** 200,123.
+
+Contains:
+
+- `client_id`
+- the same model feature contract
+- no observed treatment/outcome labels
+
+Training/scoring customer overlap: **0**.
+
+---
+
+# 13. Model feature contract
+
+The full-data scoring artifact contains **34 model features**. The canonical feature list is stored in the trusted model artifact and recovered programmatically rather than maintained as a second independent contract.
+
+The feature mart contains the following verified feature groups and fields used in the project.
+
+## Customer profile
+
+### `age`
+
+Validated/cleaned customer age representation used by the model pipeline. Raw invalid age values are not silently rewritten in the source layer.
+
+### `gender`
+
+Customer gender source code (`F`, `M`, or `U`/missing handling according to the model pipeline).
+
+### `customer_tenure_days`
+
+Days between the customer loyalty-program issue date and the feature cutoff.
+
+### `redeemed_before_cutoff_flag`
+
+Indicator that the customer has a recorded redemption date before the feature cutoff.
+
+## Lifetime transaction behavior
+
+### `transaction_count`
+
+Number of validated customer transactions in the historical feature window.
+
+### `active_history_days`
+
+Span of observed customer activity across the historical purchase window.
+
+### `recency_days`
+
+Days from the customer's most recent historical purchase to the feature cutoff.
+
+### `distinct_store_count`
+
+Number of distinct stores visited by the customer.
+
+## Lifetime monetary/basket behavior
+
+### `total_purchase_value`
+
+Sum of transaction-level `purchase_sum` across the customer's validated transactions. It is calculated from the transaction fact, not raw item rows.
+
+### `avg_basket_value`
+
+Mean transaction purchase value for the customer.
+
+### `median_basket_value`
+
+Median transaction purchase value for the customer.
+
+### `max_basket_value`
+
+Maximum transaction purchase value for the customer.
+
+### `basket_value_stddev`
+
+Standard deviation of transaction purchase value for the customer.
+
+## Recent-window behavior
+
+### `transaction_count_30d`
+
+Customer transaction count in the most recent 30-day feature window.
+
+### `transaction_count_prior_30d`
+
+Customer transaction count in the 30-day window immediately preceding the most recent 30 days.
+
+### `transaction_30d_pct`
+
+Share of the customer's lifetime/historical transactions occurring in the most recent 30-day window.
+
+### `purchase_value_30d`
+
+Transaction-level purchase value accumulated in the most recent 30-day window.
+
+### `purchase_value_prior_30d`
+
+Purchase value accumulated in the preceding 30-day window.
+
+### `purchase_value_30d_pct`
+
+Share of the customer's historical purchase value occurring in the most recent 30-day window.
+
+## Loyalty behavior
+
+### `total_regular_points_received`
+
+Customer total of regular points received/earned across validated transactions.
+
+### `total_express_points_received`
+
+Customer total of express/promotional points received/earned.
+
+### `total_regular_points_redeemed`
+
+Positive-magnitude derived measure of regular points redeemed from the negative source spending convention.
+
+### `total_express_points_redeemed`
+
+Positive-magnitude derived measure of express/promotional points redeemed.
+
+### `redemption_transaction_count`
+
+Number of transactions containing at least one regular or express redemption.
+
+### `redemption_transaction_pct`
+
+Share of customer transactions containing a redemption.
+
+## Item/product behavior
+
+### `item_line_count`
+
+Number of historical transaction-product rows associated with the customer.
+
+### `distinct_product_count`
+
+Number of unique products purchased by the customer.
+
+### `total_product_units`
+
+Sum of `product_quantity` across the customer's item rows.
+
+### `distinct_level1_category_count`
+
+Number of distinct non-null `level_1` product categories observed for the customer.
+
+### `own_trademark_item_pct`
+
+Percentage of the customer's item lines whose products have `is_own_trademark = 1`.
+
+### `alcohol_item_pct`
+
+Percentage of the customer's item lines whose products have `is_alcohol = 1`.
+
+## Anonymized `level_1` category shares
+
+The model includes three category-share features derived from the three non-null anonymized `level_1` categories. Each is calculated as:
+
+```text
+item lines in that level_1 category
+----------------------------------- × 100
+all customer item lines
+```
+
+Current generated feature names include:
+
+- `category_e344ab2e71_item_pct`
+- `category_ec62ce61e3_item_pct`
+- `category_c3d3a8e8c6_item_pct`
+
+The hashes are source/anonymized category identifiers; no business category label is inferred.
+
+## Canonical contract rule
+
+If this document and the serialized model artifact ever disagree on feature order or membership, the trusted artifact's `feature_columns` contract and the dbt model used to generate those features must be inspected before scoring. The API enforces the exact serving feature contract rather than accepting arbitrary columns.
+
+---
+
+# 14. Modeling populations and interpretation
+
+## Reference/development population
+
+`mart_uplift_training`: **200,039** customers.
+
+Contains treatment/outcome labels and is used for model development and final full-data refitting.
+
+## Scoring population
+
+`mart_uplift_scoring`: **200,123** customers.
+
+Contains features only. It is used to generate predicted treatment/control probabilities, predicted uplift, and decision-policy outputs.
+
+Because this population has no observed treatment/outcome labels, it cannot directly support post-deployment uplift-performance measurement.
+
+---
+
+# 15. Operational and generated datasets
+
+The following artifacts are part of the engineering system but are **not** historical X5 business datasets.
+
+## Incremental-ingestion demonstration
+
+Location: local generated files + isolated Snowflake `INCREMENTAL_DEMO` objects.
+
+Synthetic event fields:
+
+- `event_id`
+- `client_id`
+- `event_ts`
+- `amount`
+- `schema_version`
+
+Purpose:
+
+- demonstrate incremental file arrival
+- validate source contracts
+- quarantine invalid rows
+- preserve source provenance
+- demonstrate idempotent business-event promotion
+
+These synthetic records never enter the X5 feature marts or model training data.
+
+## Kafka/Spark streaming demonstration
+
+Synthetic JSON events use the same high-level demonstration fields and are published to Kafka. Spark preserves Kafka partition/offset provenance and writes trusted/quarantine Parquet outputs locally.
+
+Purpose:
+
+- demonstrate event-driven ingestion
+- checkpoints
+- watermarks
+- stateful event-ID deduplication
+
+These events never enter the historical X5 feature marts or model training data.
+
+## Drift-monitoring outputs
+
+Generated under `data/monitoring/`.
+
+Examples:
+
+- feature-drift report
+- summary JSON
+
+These are operational monitoring artifacts, not model features or source-of-truth analytical tables.
+
+## Governance outputs
+
+Generated under `data/governance/`.
+
+Examples:
+
+- lineage report
+- governance summary
+
+These are audit/provenance artifacts.
+
+## Deployment and MLflow artifacts
+
+Generated model bundles, deployment manifests, local MLflow state, Airflow state, streaming checkpoints, monitoring outputs, and governance outputs are intentionally excluded from Git.
+
+---
+
+# 16. Known unresolved semantics and deferred business definitions
+
+The following source semantics remain intentionally unresolved:
+
+- `products.netto`
+- `purchases.trn_sum_from_iss`
+- `purchases.trn_sum_from_red`
+
+The project does not silently replace uncertainty with guessed definitions.
+
+Other important boundaries:
+
+- treatment assignment should not be called randomized without authoritative evidence;
+- product-level revenue should not be inferred from transaction-level `purchase_sum`;
+- negative loyalty-spend values are a source convention and should be converted to positive redemption magnitudes only in explicitly derived fields;
+- drift monitoring demonstrates population/prediction stability, not realized post-deployment causal performance.

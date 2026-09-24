@@ -223,6 +223,9 @@ __marimo__/
 project_env/
 .env
 
+# Generated logs
+logs/
+
 # dbt generated files
 dbt/target/
 dbt/logs/
