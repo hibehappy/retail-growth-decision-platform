@@ -252,3 +252,6 @@ data/streaming/
 
 # Monitoring 
 data/monitoring/
+
+# Generated governance reports
+data/governance/
