@@ -130,19 +130,11 @@ The decision system therefore prioritizes estimated incremental impact rather th
 
 I compared logistic-regression and gradient-boosted T-learners using the same development holdout.
 
-| Metric | Logistic T-Learner | Boosted T-Learner |
-|---|---:|---:|
-| Treatment ROC-AUC | 0.7651 | **0.7767** |
-| Control ROC-AUC | 0.7728 | **0.7821** |
-| Qini | **168.37** | 137.73 |
-| AUUC | 0.0617 | **0.0624** |
-| Uplift @ 30% | **0.0636** | 0.0593 |
-
-The boosted model produced stronger ordinary outcome-prediction ROC-AUC and Brier scores.
-
-However, the logistic T-learner produced stronger **Qini** and **top-30% uplift**, which were more closely aligned with the downstream treatment-selection objective.
+The boosted model produced stronger ordinary outcome-prediction ROC-AUC and Brier scores. However, the logistic T-learner produced stronger **Qini** and **top-30% uplift**, which were more closely aligned with the downstream treatment-selection objective.
 
 The **logistic-regression T-learner** was therefore selected for decisioning.
+
+This illustrates an important modeling tradeoff: the model with the strongest ordinary predictive accuracy is not necessarily the model that best supports an incremental-treatment decision.
 
 ---
 
