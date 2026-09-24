@@ -1,253 +1,352 @@
 # Retail Growth Decision Platform
 
-An end-to-end data and machine-learning platform built around the X5 RetailHero benchmark dataset. The project connects raw retail data, warehouse modeling, uplift modeling, economic decisioning, model serving, orchestration, continuous integration, streaming, drift monitoring, and governance into one coherent system.
+## End-to-End Uplift Modeling & Decision Platform
 
-The central goal is not simply to train a model. It is to show how a model fits inside a reliable decision system:
+An end-to-end retail data and machine-learning platform that transforms more than **45.7 million transaction-product records** into customer-level features, estimates heterogeneous treatment uplift, and converts model predictions into budget-constrained treatment decisions.
 
-```text
-raw data
-  ↓
-warehouse
-  ↓
-features
-  ↓
-uplift model
-  ↓
-economic decision policy
-  ↓
-serving
-  ↓
-monitoring + governance
-```
+The project extends beyond model development into data engineering, decision science, MLOps, orchestration, streaming, monitoring, and governance.
 
-## What the platform does
+---
 
-The historical X5 workflow loads the five source files into Snowflake, transforms them with dbt, creates customer-level feature marts, estimates heterogeneous treatment uplift, and applies an explicit budget-constrained contact policy. The selected model is tracked with MLflow, exported into a deployment bundle, served through FastAPI, and packaged with Docker.
+## Key Results
 
-Reliability layers surround that core workflow. Airflow orchestrates the warehouse refresh, GitHub Actions validates code changes, incremental-ingestion controls demonstrate idempotent file processing, Kafka and Spark Structured Streaming demonstrate event-driven processing, drift monitoring checks changes in model inputs and predicted uplift, and governance utilities trace dbt lineage and fingerprint the model artifact.
+| Area | Result |
+|---|---:|
+| Raw purchase-item records | **45,786,568** |
+| Customer transactions | **8,045,229** |
+| Customers | **400,162** |
+| Model features | **34** |
+| Development Qini | **168.37** |
+| Top-30% observed uplift | **6.36 pp** |
+| Customers selected under main policy | **40,000** |
+| Modeled incremental conversions | **3,291.91** |
+| Modeled net value | **55,838.15** |
+| dbt resources validated | **64** |
+| Model features within normal drift range | **34 / 34** |
 
-Synthetic incremental-ingestion and streaming demonstrations are intentionally isolated from the historical X5 modeling pipeline. They are not used to retrain the uplift model or calculate historical business metrics.
+> Modeled decision values are prediction-based estimates under illustrative economic assumptions rather than realized campaign results.
 
-## Architecture at a glance
+---
 
-```mermaid
-flowchart TD
-    A[X5 source files] --> B[Amazon S3]
-    B --> C[Snowflake RAW]
-    C --> D[dbt staging/core]
-    D --> E[Analytical marts]
-    E --> F[MART_CUSTOMER_FEATURES]
-    F --> G[MART_UPLIFT_TRAINING]
-    F --> H[MART_UPLIFT_SCORING]
-    G --> I[Uplift model development]
-    I --> J[Model evaluation]
-    J --> K[Full-data logistic T-learner]
-    K --> L[MLflow]
-    K --> M[Decision engine]
-    H --> M
-    M --> N[Deployment bundle]
-    L --> N
-    N --> O[FastAPI]
-    O --> P[Docker]
-```
-
-Supporting controls:
+## Platform Architecture
 
 ```mermaid
 flowchart LR
-    A[Snowflake + dbt] --> B[Airflow orchestration]
-    C[New file batches] --> D[Incremental ingestion]
-    D --> E[Validation / quarantine]
-    F[Git repository] --> G[GitHub Actions CI]
-    H[Kafka] --> I[Spark Structured Streaming]
-    J[Feature populations] --> K[Drift monitoring]
-    L[dbt manifest] --> M[Data lineage]
-    N[Model artifact] --> O[SHA-256 provenance]
+
+    A[X5 Retail Data] --> B[Amazon S3]
+    B --> C[Snowflake]
+    C --> D[dbt]
+    D --> E[Feature Marts]
+    E --> F[Uplift Modeling]
+    F --> G[Decision Optimization]
+    G --> H[MLflow]
+    H --> I[FastAPI]
+    I --> J[Docker]
+
+    K[Airflow] -. orchestration .-> D
+    L[GitHub Actions] -. CI .-> I
+    M[Kafka + Spark] -. streaming demo .-> C
+    N[Drift Monitoring] -. model reliability .-> F
+    O[Lineage + Governance] -. provenance .-> D
 ```
 
-For the complete architecture and system boundaries, see [`docs/system_architecture.md`](docs/system_architecture.md).
+The historical X5 workflow remains the source of truth for model development.
 
-## Dataset and warehouse scale
+Incremental-ingestion and Kafka/Spark workflows use isolated synthetic data and do not modify the historical X5 training population or business metrics.
 
-| Component | Verified size |
-|---|---:|
-| Customers | 400,162 |
-| Products | 43,038 |
-| Raw purchase-item rows | 45,786,568 |
-| Validated customer transactions | 8,045,229 |
-| Uplift training customers | 200,039 |
-| Uplift scoring customers | 200,123 |
-| Customer feature mart | 400,162 |
+For the detailed system architecture, see [`docs/system_architecture.md`](docs/system_architecture.md).
 
-The purchase source contains two logical grains. A transaction is identified by `(transaction_id, client_id)`, because `transaction_id` is not globally unique across customers. An item record is identified by `(transaction_id, client_id, product_id)`.
+---
 
-The full field-level reference, data-quality findings, warehouse grains, marts, feature definitions, and unresolved source semantics are documented in [`docs/data_dictionary.md`](docs/data_dictionary.md).
+## What I Built
 
-## Modeling approach
+### Data Engineering
 
-The project uses a T-learner design with independent treatment and control outcome models:
+**Amazon S3 → Snowflake → dbt → analytical and ML feature marts**
 
-```text
-predicted uplift = P(Y=1 | X, treatment) - P(Y=1 | X, control)
-```
+The warehouse preserves raw source data separately from trusted analytical transformations.
 
-The final decisioning model is a logistic-regression T-learner. On the development holdout it produced:
+The pipeline includes customer and product dimensions, transaction facts, analytical marts, customer-level features, and dedicated uplift-training and scoring populations.
 
-| Metric | Result |
-|---|---:|
-| Treatment ROC-AUC | 0.765062 |
-| Control ROC-AUC | 0.772814 |
-| Treatment Brier score | 0.186098 |
-| Control Brier score | 0.188313 |
-| Qini | 168.366182 |
-| Observed uplift in top 30% | 0.063582 |
+### Data Science
 
-A boosted T-learner produced stronger ordinary classification metrics, while the logistic model produced the stronger Qini and top-30% uplift results used for the project's treatment-selection objective.
+**Feature engineering → uplift modeling → causal diagnostics → model comparison → drift monitoring**
 
-The public materials used in the project do not establish that treatment assignment was randomized. Observed balance and a near-random propensity classifier support comparability on measured features, but they do not prove randomization or eliminate unobserved confounding. See [`docs/causal_assumptions.md`](docs/causal_assumptions.md) and [`docs/model_card.md`](docs/model_card.md).
+The project compares treatment and control outcome models and evaluates whether model rankings identify customers with larger observed differences in treatment response.
 
-## Economic decisioning
+### Decision Science
 
-Model scores are converted into an explicit economic policy rather than treated as the final product. The main demonstration uses:
+**Predicted uplift → modeled economic value → budget-constrained contact policy**
 
-| Assumption / result | Value |
-|---|---:|
-| Conversion value | 20.00 |
-| Contact cost | 0.25 |
-| Budget | 10,000.00 |
-| Customers selected | 40,000 |
-| Modeled incremental conversions | 3,291.91 |
-| Modeled incremental value | 65,838.15 |
-| Contact spend | 10,000.00 |
-| Modeled net value | 55,838.15 |
+The model is not treated as the final output.
 
-These are prediction-based estimates under illustrative economic assumptions, not realized campaign outcomes.
+Predicted treatment uplift is converted into an actionable contact policy using conversion value, contact cost, and a campaign budget.
 
-## Reliability and ML engineering
+### ML Engineering
 
-The project includes the following engineering controls:
+**MLflow → deployment bundle → FastAPI → Docker**
 
-- **dbt tests and contracts** for warehouse integrity and the fixed X5 snapshot.
-- **Airflow** for a four-task warehouse refresh: connection check → snapshot validation → dbt build → build verification.
-- **Incremental ingestion** with source preservation, validation, quarantine, and idempotent trusted-event promotion.
-- **GitHub Actions CI** for repository hygiene, Python syntax, unit tests, dbt parsing, and Docker image construction.
-- **Kafka + Spark Structured Streaming** for a separate event-driven demonstration with offsets, checkpoints, watermarks, quarantine handling, and stateful deduplication.
-- **Data/model drift monitoring** using PSI, SMD, missingness deltas, prediction drift, and downstream policy comparison.
-- **Governance** using the dbt manifest for lineage, a model card for intended-use documentation, and SHA-256 for exact artifact fingerprinting.
+The selected model is tracked, fingerprinted, exported into a portable deployment bundle, served through an API, and packaged into a reproducible Docker container.
 
-## Verified operational results
+### Reliability & Governance
 
-### Orchestrated dbt build
+**Airflow → data contracts → GitHub Actions → Kafka/Spark → drift monitoring → lineage → artifact provenance**
 
-- 4 Airflow tasks passed.
-- 64 dbt resources completed successfully.
-- 17 resources reported `success`.
-- 47 tests reported `pass`.
-- 3 required modeling marts were verified.
+The project includes workflow orchestration, automated testing, incremental-ingestion controls, streaming demonstrations, model monitoring, data lineage, and model-artifact governance.
 
-### Streaming demonstration
+---
 
-- 7 Kafka messages published.
-- 4 trusted unique events produced.
-- 2 invalid events quarantined.
-- 1 duplicate suppressed.
+## Why Uplift Modeling?
 
-### Drift monitoring
+Traditional response modeling asks:
 
-Across the X5 development and scoring populations:
+> Which customers are most likely to convert?
 
-- 34 model features monitored.
-- 34 features classified `OK`.
-- 0 `WARNING` features.
-- 0 `CRITICAL` features.
-- Highest feature PSI: 0.000204.
-- Prediction PSI: 0.000086 (`OK`).
+This project asks a different question:
 
-A controlled synthetic shift triggered 2 `CRITICAL` feature alerts, 1 `WARNING` feature alert, and prediction PSI of 0.17661 (`WARNING`), demonstrating that the detector responds to known distribution movement.
+> Which customers are more likely to convert **because they receive the treatment**?
 
-### Governance and warehouse-efficiency audit
+A T-learner estimates:
 
-- 3 ML-adjacent dbt lineage targets traced.
-- 40 lineage resources recovered.
-- 34-feature model contract recorded.
-- SHA-256 fingerprint generated for the trusted model artifact.
-- 150 successful Snowflake queries inspected over a 6-day window.
-- Total successful-query elapsed time: 164.00 seconds.
-- Total data scanned: 12.387 GB.
-- Largest individual scan: 2.309 GB.
+`P(Y = 1 | X, treatment)`
 
-Query duration and bytes scanned are efficiency indicators, not exact Snowflake billing measurements.
+and:
 
-## Repository map
+`P(Y = 1 | X, control)`
 
-```text
-retail-growth-decision-platform/
-├── .github/workflows/        # GitHub Actions CI
-├── api/                      # FastAPI serving application + Dockerfile
-├── data/                     # Local/generated artifacts; most subfolders ignored
-├── dbt/                      # dbt project, models, tests, generated target artifacts
-├── docs/                     # Architecture, data dictionary, model card, assumptions
-├── notebooks/                # Numbered end-to-end project notebooks
-├── orchestration/dags/       # Airflow DAG
-├── scripts/                  # Reusable operational and validation scripts
-├── sql/                      # Manual Snowflake setup/audit/validation SQL
-├── src/                      # Reusable decisioning, drift, and governance logic
-├── streaming/                # Kafka + Spark local streaming demonstration
-├── tests/                    # Python unit tests
-├── .gitignore
-├── README.md
-└── requirements.txt
-```
+Predicted uplift is:
 
-For a detailed explanation of where each component lives, which files are generated, and how the major workflows are run, see [`docs/repository_guide.md`](docs/repository_guide.md).
+`P(Y = 1 | X, treatment) - P(Y = 1 | X, control)`
 
-## Documentation
+This distinction matters because a customer with a high conversion probability may have converted even without treatment.
 
-| Document | Purpose |
+The decision system therefore prioritizes estimated incremental impact rather than response probability alone.
+
+---
+
+## Model Selection
+
+![Model Selection](docs/assets/model_selection.png)
+
+I compared logistic-regression and gradient-boosted T-learners using the same development holdout.
+
+| Metric | Logistic T-Learner | Boosted T-Learner |
+|---|---:|---:|
+| Treatment ROC-AUC | 0.7651 | **0.7767** |
+| Control ROC-AUC | 0.7728 | **0.7821** |
+| Qini | **168.37** | 137.73 |
+| AUUC | 0.0617 | **0.0624** |
+| Uplift @ 30% | **0.0636** | 0.0593 |
+
+The boosted model produced stronger ordinary outcome-prediction ROC-AUC and Brier scores.
+
+However, the logistic T-learner produced stronger **Qini** and **top-30% uplift**, which were more closely aligned with the downstream treatment-selection objective.
+
+The **logistic-regression T-learner** was therefore selected for decisioning.
+
+---
+
+## From Prediction to Decision
+
+Predicted uplift is converted into modeled economic value:
+
+`modeled net value = predicted uplift × conversion value − contact cost`
+
+Main demonstration assumptions:
+
+- Conversion value: **20**
+- Contact cost: **0.25**
+- Campaign budget: **10,000**
+- Customers selected: **40,000**
+- Modeled incremental conversions: **3,291.91**
+- Modeled incremental value: **65,838.15**
+- Contact spend: **10,000**
+- Modeled net value: **55,838.15**
+
+![Budget Sensitivity](docs/assets/decision_budget_sensitivity.png)
+
+The budget-sensitivity analysis shows how modeled incremental value changes as campaign capacity increases.
+
+These values are model-based scenario estimates rather than realized campaign outcomes.
+
+---
+
+## Data & Model Drift Monitoring
+
+Across the benchmark development and scoring populations:
+
+- Model features monitored: **34**
+- Features with OK status: **34**
+- WARNING features: **0**
+- CRITICAL features: **0**
+- Highest observed feature PSI: **0.000204**
+- Prediction PSI: **0.000086**
+- Prediction drift status: **OK**
+
+A controlled synthetic stress test then deliberately shifted:
+
+- `transaction_count_30d`
+- `total_purchase_value`
+- `gender`
+
+The monitoring system produced:
+
+- **2 CRITICAL** feature alerts
+- **1 WARNING** feature alert
+- Synthetic prediction PSI: **0.17661**
+- Synthetic prediction drift status: **WARNING**
+
+![Drift Monitoring](docs/assets/drift_monitoring.png)
+
+The stress test demonstrates that the monitoring logic can distinguish a stable population comparison from a deliberately shifted population.
+
+---
+
+## Data Reliability
+
+The project includes two isolated demonstrations for handling newly arriving data.
+
+### Incremental Batch Ingestion
+
+New synthetic files are:
+
+`S3 → raw landing → validation → trusted events / quarantine`
+
+The workflow demonstrates:
+
+- source-level provenance
+- schema validation
+- invalid-record quarantine
+- duplicate protection
+- idempotent promotion
+
+### Event Streaming
+
+Synthetic events are processed through:
+
+`Kafka → Spark Structured Streaming → validation → deduplication → trusted / quarantine outputs`
+
+The streaming demonstration includes:
+
+- Kafka topics
+- partitions
+- offsets
+- Spark checkpoints
+- event-time watermarks
+- stateful event-ID deduplication
+
+Synthetic ingestion and streaming data remain separate from the historical X5 modeling pipeline.
+
+---
+
+## Reproducibility & Reliability
+
+### Airflow
+
+Airflow coordinates the Snowflake/dbt warehouse refresh.
+
+The successful workflow executed:
+
+- **4 DAG tasks**
+- **64 dbt resources**
+- **17 successful model/resource executions**
+- **47 passing dbt tests**
+- **3 required ML marts verified**
+
+### GitHub Actions
+
+CI automatically checks:
+
+- repository hygiene
+- Python syntax
+- Python unit tests
+- dbt static parsing
+- FastAPI Docker image construction
+
+The CI workflow runs on a clean environment without requiring Snowflake or AWS credentials.
+
+### MLflow
+
+MLflow records model provenance and allows the serving models to be reloaded and checked against the original prediction outputs.
+
+### Governance
+
+The project also includes:
+
+- dbt lineage extraction
+- a 34-feature model contract
+- SHA-256 model-artifact fingerprinting
+- model documentation
+- warehouse query-efficiency auditing
+
+---
+
+## Technology Stack
+
+| Layer | Technologies |
 |---|---|
-| [`docs/system_architecture.md`](docs/system_architecture.md) | End-to-end architecture, component boundaries, reliability layers, and tradeoffs |
-| [`docs/data_dictionary.md`](docs/data_dictionary.md) | Source fields, grains, warehouse models, marts, feature definitions, and data-quality findings |
-| [`docs/model_card.md`](docs/model_card.md) | Model purpose, evaluation, causal limitations, monitoring, and intended use |
-| [`docs/causal_assumptions.md`](docs/causal_assumptions.md) | Assumptions required for causal interpretation |
-| [`docs/repository_guide.md`](docs/repository_guide.md) | Repository navigation, generated artifacts, and common workflows |
+| Storage | Amazon S3 |
+| Warehouse | Snowflake |
+| Transformation | dbt |
+| Analysis / ML | Python, pandas, NumPy, scikit-learn |
+| Experiment tracking | MLflow |
+| API serving | FastAPI, Uvicorn |
+| Containerization | Docker |
+| Orchestration | Apache Airflow |
+| CI | GitHub Actions |
+| Streaming | Apache Kafka, Spark Structured Streaming |
+| Monitoring | PSI, SMD, missingness and prediction drift |
+| Governance | dbt manifest lineage, SHA-256 provenance |
 
-## Reproducibility boundaries
+---
 
-The repository intentionally does not commit credentials, local virtual environments, warehouse extracts, model artifacts, MLflow state, deployment bundles, Airflow state, streaming outputs/checkpoints, synthetic generated files, monitoring outputs, or governance outputs.
+## Explore the Project
 
-Examples of ignored local paths include:
+| Area | Resource |
+|---|---|
+| System architecture | [`docs/system_architecture.md`](docs/system_architecture.md) |
+| Data dictionary | [`docs/data_dictionary.md`](docs/data_dictionary.md) |
+| Model card | [`docs/model_card.md`](docs/model_card.md) |
+| Causal assumptions | [`docs/causal_assumptions.md`](docs/causal_assumptions.md) |
+| Repository guide | [`docs/repository_guide.md`](docs/repository_guide.md) |
+| Data audit | [`notebooks/01_data_audit.ipynb`](notebooks/01_data_audit.ipynb) |
+| Uplift baseline | [`notebooks/02_uplift_baseline.ipynb`](notebooks/02_uplift_baseline.ipynb) |
+| Model evaluation | [`notebooks/03_uplift_model_evaluation.ipynb`](notebooks/03_uplift_model_evaluation.ipynb) |
+| Treatment decisioning | [`notebooks/04_treatment_decisioning.ipynb`](notebooks/04_treatment_decisioning.ipynb) |
+| MLflow reproducibility | [`notebooks/06_mlflow_tracking.ipynb`](notebooks/06_mlflow_tracking.ipynb) |
+| Model serving | [`notebooks/07_model_serving.ipynb`](notebooks/07_model_serving.ipynb) |
+| Pipeline orchestration | [`notebooks/08_pipeline_orchestration.ipynb`](notebooks/08_pipeline_orchestration.ipynb) |
+| Incremental ingestion | [`notebooks/09_incremental_ingestion.ipynb`](notebooks/09_incremental_ingestion.ipynb) |
+| CI quality gates | [`notebooks/10_ci_quality_gates.ipynb`](notebooks/10_ci_quality_gates.ipynb) |
+| Kafka + Spark streaming | [`notebooks/11_stream_processing.ipynb`](notebooks/11_stream_processing.ipynb) |
+| Data/model drift | [`notebooks/12_data_model_drift.ipynb`](notebooks/12_data_model_drift.ipynb) |
+| Governance & lineage | [`notebooks/13_governance_lineage_cost.ipynb`](notebooks/13_governance_lineage_cost.ipynb) |
+| End-to-end evaluation | [`notebooks/14_end_to_end_platform.ipynb`](notebooks/14_end_to_end_platform.ipynb) |
 
-```text
-.env
-project_env/
-airflow_env/
-streaming_env/
-data/processed/
-data/models/
-data/mlflow/
-data/deployment/
-data/airflow/
-data/synthetic/
-data/streaming/
-data/monitoring/
-data/governance/
-```
+---
 
-The code that creates or validates those artifacts remains version controlled.
+## Important Limitations
 
-## Project limitations
+The project uses the historical X5 RetailHero benchmark rather than a live retail production system.
 
-This is a portfolio-scale technical system built on a historical benchmark, not a live production retailer. The scoring population does not include observed treatment outcomes, so post-deployment uplift-performance drift cannot be measured directly. The economic assumptions are illustrative. The incremental and streaming datasets are synthetic. MLflow tracking and the Kafka/Spark demonstration are local rather than managed multi-user services. Enterprise controls such as production IAM design, centralized logging, distributed tracing, formal approval workflows, disaster recovery, and regulatory retention policies remain outside the project scope.
+The public materials used in this project do not establish that treatment assignment was randomized. Strong observed covariate balance does not rule out unobserved confounding.
 
-## Start here
+The X5 scoring population does not contain observed treatment outcomes, so true post-deployment uplift-performance drift cannot be measured.
 
-If you are reviewing the repository for the first time, read the files in this order:
+Economic assumptions such as conversion value, contact cost, and campaign budget are illustrative.
 
-1. `README.md`
-2. `docs/system_architecture.md`
-3. `docs/model_card.md`
-4. `docs/data_dictionary.md`
-5. `docs/repository_guide.md`
-6. the numbered notebooks for implementation detail
+The incremental-ingestion and streaming workflows use synthetic data and are intentionally isolated from historical X5 model development.
 
-The notebooks show how the platform was built. The documentation files describe the final system.
+The serving environment is a reproducible local/containerized demonstration rather than a production multi-region service.
+
+---
+
+## Project Goal
+
+The goal of this project is not simply to train an uplift model.
+
+It is to connect:
+
+`raw data → warehouse → features → model → decision → serving → monitoring → governance`
+
+into one coherent decision platform while keeping the assumptions and limitations of each stage explicit.
